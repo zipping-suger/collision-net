@@ -1,3 +1,7 @@
-torch
 numpy
 matplotlib
+
+geometrout==0.0.3.4
+pyquaternion
+
+
