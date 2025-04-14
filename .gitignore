@@ -3,3 +3,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+collision_bool/
+
+checkpoints*
+lightning_logs/
