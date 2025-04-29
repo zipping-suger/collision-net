@@ -980,3 +980,93 @@ class PointTransformerV3(PointModule):
         if not self.cls_mode:
             point = self.dec(point)
         return point
+
+
+import pytorch_lightning as pl
+
+def prepare_input_for_ptv3(point_cloud_tensor):
+    """
+    Convert a tensor of shape [B x N x 4] to the proper input format for PointTransformerV3
+    
+    Args:
+        point_cloud_tensor: Tensor of shape [B x N x 4] where:
+            B is batch size
+            N is number of points
+            4 is x, y, z, feature (e.g., segmentation mask)
+    
+    Returns:
+        Dictionary formatted for PointTransformerV3
+    """
+    batch_size = point_cloud_tensor.shape[0]
+    num_points = point_cloud_tensor.shape[1]
+    device = point_cloud_tensor.device
+    
+    # Create batch indices
+    batch_indices = []
+    for b in range(batch_size):
+        batch_indices.append(torch.full((num_points,), b, device=device, dtype=torch.long))
+    batch = torch.cat(batch_indices)
+    
+    # Reshape the point cloud to [B*N, 4]
+    points_reshaped = point_cloud_tensor.reshape(-1, point_cloud_tensor.shape[-1])
+    
+    # Prepare input dictionary
+    input_dict = {
+        "coord": points_reshaped[:, :3],  # Extract x, y, z coordinates
+        "feat": points_reshaped,         # Use full point data as features
+        "batch": batch,                  # Batch indices
+        "grid_size": torch.tensor(0.02, device=device)  # Grid size for voxelization
+    }
+    
+    return input_dict
+
+class PointTransformerNet(pl.LightningModule):
+    def __init__(self, feature_dim=2048):
+        """
+        PointTransformer feature extractor for point clouds.
+        
+        :param feature_dim: Dimension of the output feature vector
+        """
+        super().__init__()
+        self.pt = PointTransformerV3(
+            in_channels=4,  # x, y, z, segmentation mask
+            enc_depths=(2, 2, 2, 6, 2),
+            enc_channels=(32, 64, 128, 256, 512),
+            enc_num_head=(2, 4, 8, 16, 32),
+            enc_patch_size=(1024, 1024, 1024, 1024, 1024),
+            cls_mode=True  # Only output encoded features
+        )
+        
+        # Additional projection layer to match desired feature dimension
+        self.proj = nn.Sequential(
+            nn.Linear(512, feature_dim),
+            nn.LeakyReLU(),
+            nn.Linear(feature_dim, feature_dim)
+        )
+        
+    def forward(self, point_cloud: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the PointTransformer.
+        
+        :param point_cloud: Tensor representing the point cloud. Should have dimensions [B x N x 4]
+                        where B is batch size, N is number of points, and 4 is x,y,z,seg_mask
+        :return: Feature vector of shape [B, feature_dim]
+        """
+        
+        # Prepare input for PointTransformerV3
+        input_data = prepare_input_for_ptv3(point_cloud)
+        
+        # Forward pass through PointTransformerV3
+        output = self.pt(input_data)
+        
+        # Global max pooling using torch_scatter (more efficient)
+        batch_size = int(output.batch.max().item() + 1)
+        global_feature = torch_scatter.scatter_max(
+            output.feat, 
+            output.batch, 
+            dim=0, 
+            dim_size=batch_size
+        )[0]  # [0] because scatter_max returns (output, indices)
+        
+        # Project to desired feature dimension
+        return self.proj(global_feature)

@@ -34,7 +34,7 @@ from copy import deepcopy
 
 from pyquaternion import Quaternion
 
-from environments.base_environment import (
+from data_pipeline.environments.base_environment import (
     TaskOrientedCandidate,
     NeutralCandidate,
     Environment,
