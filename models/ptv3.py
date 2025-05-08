@@ -1021,7 +1021,7 @@ def prepare_input_for_ptv3(point_cloud_tensor):
     return input_dict
 
 class PointTransformerNet(pl.LightningModule):
-    def __init__(self, feature_dim=2048):
+    def __init__(self, feature_dim):
         """
         PointTransformer feature extractor for point clouds.
         
@@ -1029,18 +1029,24 @@ class PointTransformerNet(pl.LightningModule):
         """
         super().__init__()
         self.pt = PointTransformerV3(
-            in_channels=4,  # x, y, z, segmentation mask
-            enc_depths=(2, 2, 2, 6, 2),
-            enc_channels=(32, 64, 128, 256, 512),
-            enc_num_head=(2, 4, 8, 16, 32),
-            enc_patch_size=(1024, 1024, 1024, 1024, 1024),
-            cls_mode=True  # Only output encoded features
+            in_channels=4,
+            stride=(4, 4, 4),  # Faster downsampling (fewer points to process)
+            enc_depths=(1, 1, 3, 1),  # layers
+            enc_channels=(32, 64, 96, 192),  # feature dimensions
+            enc_num_head=(2, 4, 6, 8),
+            enc_patch_size=(256, 256, 256, 256),
+            cls_mode=True,
+            order=("z"),  # Using only one serialization order
+            enable_flash=True,
+            shuffle_orders=False,  # Skip order shuffling for speed
         )
+        
         
         # Additional projection layer to match desired feature dimension
         self.proj = nn.Sequential(
-            nn.Linear(512, feature_dim),
-            nn.LeakyReLU(),
+            nn.Linear(192, feature_dim),
+            nn.GroupNorm(16, feature_dim),
+            nn.LeakyReLU(inplace=True),
             nn.Linear(feature_dim, feature_dim)
         )
         
@@ -1053,10 +1059,9 @@ class PointTransformerNet(pl.LightningModule):
         :return: Feature vector of shape [B, feature_dim]
         """
         
-        # Prepare input for PointTransformerV3
+        # Measure time for preparing input
         input_data = prepare_input_for_ptv3(point_cloud)
-        
-        # Forward pass through PointTransformerV3
+
         output = self.pt(input_data)
         
         # Global max pooling using torch_scatter (more efficient)

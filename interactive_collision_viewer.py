@@ -1,4 +1,5 @@
 import sys
+import time
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,9 +11,14 @@ from data_pipeline.environments.cubby_environment import CubbyEnvironment
 from train import CollisionNetPL
 
 def check_collision(model, fk_sampler, q, obstacle_points, num_robot_points, num_obstacle_points, device):
-    q_tensor = torch.as_tensor(q).float().to(device)
+
+    q_tensor = torch.as_tensor(q).float().to(device)    
+    # Time the robot point sampling operation
+    sample_start = time.time()
     robot_points = fk_sampler.sample(q_tensor.cpu().unsqueeze(0), num_robot_points)
     robot_points_np = robot_points.squeeze(0).cpu().numpy()
+    sample_end = time.time()
+    print(f"Robot point sampling time: {(sample_end - sample_start)*1000:.2f}ms")
 
     obstacle_tensor = torch.as_tensor(obstacle_points[:, :3]).float().to(device)
     xyz = torch.cat((
@@ -22,20 +28,31 @@ def check_collision(model, fk_sampler, q, obstacle_points, num_robot_points, num
     xyz[:num_robot_points, :3] = torch.as_tensor(robot_points_np).to(device)
     xyz[num_robot_points:, :3] = obstacle_tensor
 
+    # Time the model inference operation
+    inference_start = time.time()
     with torch.no_grad():
         pred = model(xyz.unsqueeze(0), q_tensor.unsqueeze(0))
         collision = pred.item() > 0.5
+    inference_end = time.time()
+    print(f"Model inference time: {(inference_end - inference_start)*1000:.2f}ms")
 
     return collision, robot_points_np
 
 def main():
     env = CubbyEnvironment()
     selfcc = FrankaSelfCollisionChecker()
+    # Check if CUDA is available and set device accordingly Point Transformer V3 only supports GPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     fk_sampler = FrankaSampler("cpu", use_cache=True)
-    device = torch.device("cpu")
 
-    checkpoint_path = 'checkpoints_pointnet/collisionnet-epoch=58-val_loss=0.14.ckpt'
-    model = CollisionNetPL.load_from_checkpoint(checkpoint_path=checkpoint_path).to(device).eval()
+    # checkpoint_path = 'checkpoints_ptv_25/collisionnet-epoch=23-val_loss=0.07.ckpt'
+    # model = CollisionNetPL.load_from_checkpoint(checkpoint_path=checkpoint_path).to(device).eval()
+    model = CollisionNetPL().to(device).eval()
+    
+    # Print model prarameters count
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model parameters: {num_params / 1e6:.2f}M")
 
     num_robot_points = 2048
     num_obstacle_points = 4096
