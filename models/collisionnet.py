@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import pytorch_lightning as pl
 from models.pointnet import PointNet
-from models.pointnet2 import PointNet2
+# from models.pointnet2 import PointNet2
 from models.ptv3 import PointTransformerNet
 from models.pcn import PCNEncoder
 from models.hierarchical_pointnet import SimpleSceneNet
@@ -13,7 +13,7 @@ class CollisionNet(pl.LightningModule):
     Motion Policy Networks paper (Fishman, et. al, 2022).
     """
     # Let's test latenr dim = 256, 512, 2048
-    def __init__(self, latent_dim=2048): 
+    def __init__(self, latent_dim=256): 
         """
         Constructs the model
         """

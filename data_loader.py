@@ -56,8 +56,10 @@ class CollisionDataset(Dataset):
             
             # Process free configurations (collision_flag = 0)
             for q in env_data["qs_free"]:
-                robot_points = self._get_robot_points(q)  
-                pointcloud = self._construct_pointcloud(robot_points, obstacle_points)
+                # robot_points = self._get_robot_points(q)  
+                # pointcloud = self._construct_pointcloud(robot_points, obstacle_points)
+                
+                pointcloud = self._construct_pointcloud(obstacle_points)
                 
                 free_samples.append({
                     'pointcloud': pointcloud,
@@ -67,9 +69,11 @@ class CollisionDataset(Dataset):
             
             # Process collision configurations (collision_flag = 1)
             for q in env_data["qs_collision"]:
-                robot_points = self._get_robot_points(q)
+                # robot_points = self._get_robot_points(q)
+                # pointcloud = self._construct_pointcloud(robot_points, obstacle_points)
                 
-                pointcloud = self._construct_pointcloud(robot_points, obstacle_points)
+                pointcloud = self._construct_pointcloud(obstacle_points)
+                
                 
                 collision_samples.append({
                     'pointcloud': pointcloud,
@@ -96,30 +100,45 @@ class CollisionDataset(Dataset):
         return self.fk_sampler.sample(q, self.num_robot_points)
     
     
-    def _construct_pointcloud(self, robot_points, obstacle_points):
+    # def _construct_pointcloud(self, robot_points, obstacle_points):
+    #     """
+    #     Construct the point cloud with features as shown in the example.
+    #     """
+    #     obstacle_points = torch.as_tensor(obstacle_points[:, :3]).float()
+        
+    #     xyz = torch.cat(
+    #         (
+    #             torch.zeros(self.num_robot_points, 4),
+    #             torch.ones(self.num_obstacle_points, 4),
+    #         ),
+    #         dim=0,
+    #     )
+        
+    #     xyz[:self.num_robot_points, :3] = robot_points
+    #     xyz[self.num_robot_points:self.num_robot_points+self.num_obstacle_points, :3] = obstacle_points
+        
+    #     return xyz
+    
+    
+    def _construct_pointcloud(self, obstacle_points):
         """
-        Construct the point cloud with features as shown in the example.
+        Construct the point cloud with features using only obstacle points.
+        
+        Args:
+            obstacle_points (numpy.ndarray or torch.Tensor): Points from obstacles
+            
+        Returns:
+            torch.Tensor: Point cloud with feature channel (xyz + feature)
         """
+        # Convert obstacle points to tensor if needed
         obstacle_points = torch.as_tensor(obstacle_points[:, :3]).float()
         
-        xyz = torch.cat(
-            (
-                torch.zeros(self.num_robot_points, 4),
-                torch.ones(self.num_obstacle_points, 4),
-            ),
-            dim=0,
-        )
+        # Create tensor with shape [num_obstacle_points, 4]
+        # The last column (feature) is set to 1 for all obstacle points
+        point_cloud = torch.ones(obstacle_points.shape[0], 4)
+        point_cloud[:, :3] = obstacle_points
         
-        xyz[:self.num_robot_points, :3] = robot_points
-        xyz[self.num_robot_points:self.num_robot_points+self.num_obstacle_points, :3] = obstacle_points
-        
-        return xyz
-    
-    def __len__(self):
-        return len(self.samples)
-    
-    def __getitem__(self, idx):
-        return self.samples[idx]
+        return point_cloud
 
 
 def save_full_data_tensor(data_file, output_file):

@@ -46,9 +46,9 @@ def main():
     
     fk_sampler = FrankaSampler("cpu", use_cache=True)
 
-    # checkpoint_path = 'checkpoints_ptv_25/collisionnet-epoch=23-val_loss=0.07.ckpt'
-    # model = CollisionNetPL.load_from_checkpoint(checkpoint_path=checkpoint_path).to(device).eval()
-    model = CollisionNetPL().to(device).eval()
+    checkpoint_path = 'checkpoints_ptv_nr/collisionnet-epoch=25-val_loss=0.07.ckpt'
+    model = CollisionNetPL.load_from_checkpoint(checkpoint_path=checkpoint_path).to(device).eval()
+    # model = CollisionNetPL().to(device).eval()
     
     # Print model prarameters count
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
