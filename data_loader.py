@@ -223,7 +223,7 @@ def get_data_loaders_from_tensor(tensor_file, batch_size=32, train_ratio=0.8, nu
 if __name__ == "__main__":
     # Example usage
     DATA_FILE = "./collision_bool/raw_test.pkl"
-    TENSOR_FILE = "./collision_bool/processed_test.pt"
+    TENSOR_FILE = "./collision_bool/processed_no_robot_test.pt"
     
     # Save full dataset as tensor
     save_full_data_tensor(DATA_FILE, TENSOR_FILE)

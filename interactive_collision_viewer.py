@@ -12,7 +12,7 @@ from train import CollisionNetPL
 
 def check_collision(model, fk_sampler, q, obstacle_points, num_robot_points, num_obstacle_points, device):
 
-    q_tensor = torch.as_tensor(q).float().to(device)    
+    q_tensor = torch.as_tensor(q).float().to(device)   
     # Time the robot point sampling operation
     sample_start = time.time()
     robot_points = fk_sampler.sample(q_tensor.cpu().unsqueeze(0), num_robot_points)
@@ -21,17 +21,22 @@ def check_collision(model, fk_sampler, q, obstacle_points, num_robot_points, num
     print(f"Robot point sampling time: {(sample_end - sample_start)*1000:.2f}ms")
 
     obstacle_tensor = torch.as_tensor(obstacle_points[:, :3]).float().to(device)
-    xyz = torch.cat((
-        torch.zeros(num_robot_points, 4).to(device),
-        torch.ones(num_obstacle_points, 4).to(device),
-    ), dim=0)
-    xyz[:num_robot_points, :3] = torch.as_tensor(robot_points_np).to(device)
-    xyz[num_robot_points:, :3] = obstacle_tensor
+    
+    # xyz = torch.cat((
+    #     torch.zeros(num_robot_points, 4).to(device),
+    #     torch.ones(num_obstacle_points, 4).to(device),
+    # ), dim=0)
+    # xyz[:num_robot_points, :3] = torch.as_tensor(robot_points_np).to(device)
+    # xyz[num_robot_points:, :3] = obstacle_tensor
+    
+    xyz = torch.ones(num_obstacle_points, 4).to(device)
+    xyz[:, :3] = obstacle_tensor
 
     # Time the model inference operation
     inference_start = time.time()
     with torch.no_grad():
         pred = model(xyz.unsqueeze(0), q_tensor.unsqueeze(0))
+        print(f"Model output: {pred}")
         collision = pred.item() > 0.5
     inference_end = time.time()
     print(f"Model inference time: {(inference_end - inference_start)*1000:.2f}ms")
@@ -42,11 +47,13 @@ def main():
     env = CubbyEnvironment()
     selfcc = FrankaSelfCollisionChecker()
     # Check if CUDA is available and set device accordingly Point Transformer V3 only supports GPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda")  # Force CPU to test if crash is CUDA-related
+
     
     fk_sampler = FrankaSampler("cpu", use_cache=True)
 
-    checkpoint_path = 'checkpoints_ptv_nr/collisionnet-epoch=25-val_loss=0.07.ckpt'
+    checkpoint_path = 'checkpoints_ptv_nr_256/collisionnet-epoch=36-val_loss=0.10.ckpt'
     model = CollisionNetPL.load_from_checkpoint(checkpoint_path=checkpoint_path).to(device).eval()
     # model = CollisionNetPL().to(device).eval()
     
