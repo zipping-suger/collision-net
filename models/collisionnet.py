@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import pytorch_lightning as pl
 from models.pointnet import PointNet
-# from models.pointnet2 import PointNet2
+from models.pointnet2 import PointNet2
 from models.ptv3 import PointTransformerNet
 from models.pcn import PCNEncoder
 from models.hierarchical_pointnet import SimpleSceneNet
@@ -13,16 +13,16 @@ class CollisionNet(pl.LightningModule):
     Motion Policy Networks paper (Fishman, et. al, 2022).
     """
     # Let's test latenr dim = 256, 512, 2048
-    def __init__(self, latent_dim=256): 
+    def __init__(self, latent_dim=2048): 
         """
         Constructs the model
         """
         super().__init__()
         # self.point_cloud_encoder = PointNet()
-        # self.point_cloud_encoder = PointNet2()  # PointNet++
+        self.point_cloud_encoder = PointNet2()  # PointNet++
         # self.point_cloud_encoder = PCNEncoder()  # Point Cloud Network
         # self.point_cloud_encoder = SimpleSceneNet(bounds=[[-1,.5 -1.5, -0.5], [1.5, 1.5, 1.5]], vox_size=[0.05, 0.05, 0.05]) # Hierarchical PointNet (Voxel-maxpooling)
-        self.point_cloud_encoder = PointTransformerNet(feature_dim=latent_dim) # Point Transformer V3
+        # self.point_cloud_encoder = PointTransformerNet(feature_dim=latent_dim) # Point Transformer V3
         self.feature_encoder = nn.Sequential(
             nn.Linear(7, 32),
             nn.LeakyReLU(),
@@ -72,3 +72,10 @@ class CollisionNet(pl.LightningModule):
         feature_encoding = self.feature_encoder(q)
         x = torch.cat((pc_encoding, feature_encoding), dim=1)
         return self.decoder(x)
+    
+
+if __name__ == "__main__":
+    # This is just to allow the model to be run as a script
+    # It will not be executed when imported as a module
+    model = CollisionNet()
+    print(model)
